@@ -1,0 +1,38 @@
+<mujoco model="xarm6_scene">
+  <default>
+    <joint armature="0.1" damping="2" frictionloss="0.1"/>
+  </default>
+  <include file="../xarm6.xml"/>
+
+  <option gravity="0 0 -9.81" timestep="0.002" integrator="implicitfast"/>
+
+  <visual>
+    <headlight ambient="0.4 0.4 0.4" diffuse="0.8 0.8 0.8"/>
+  </visual>
+
+  <worldbody>
+    <light pos="0 0 3" dir="0 0 -1"/>
+    <geom name="floor" type="plane" size="2 2 0.1" rgba="0.8 0.8 0.8 1"/>
+
+    <!-- BOARD: size is HALF the length/width/thickness (meters).
+         If board_corner_reach.py gave you a bigger size, paste it here. -->
+    <geom name="board" type="box" pos="0.4 0 0.01" size="0.1962 0.3487 0.0100" rgba="0.6 0.5 0.3 1"/>
+
+    <!-- START marker (green) and GOAL marker (red). The play script moves them. -->
+    <body name="start" mocap="true" pos="0.4 0 0.05">
+      <geom type="sphere" size="0.015" rgba="0 0.8 0 1" contype="0" conaffinity="0"/>
+    </body>
+    <body name="goal" mocap="true" pos="0.4 0 0.05">
+      <geom type="sphere" size="0.015" rgba="1 0 0 1" contype="0" conaffinity="0"/>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <position name="act1" joint="joint1" kp="1000" kv="100"/>
+    <position name="act2" joint="joint2" kp="1000" kv="100"/>
+    <position name="act3" joint="joint3" kp="800"  kv="80"/>
+    <position name="act4" joint="joint4" kp="500"  kv="50"/>
+    <position name="act5" joint="joint5" kp="500"  kv="50"/>
+    <position name="act6" joint="joint6" kp="300"  kv="30"/>
+  </actuator>
+</mujoco>
