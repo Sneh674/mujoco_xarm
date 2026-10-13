@@ -16,7 +16,8 @@ import mujoco.viewer
 
 # ---------------- settings ----------------
 MODEL_PATH = "rl_scene.xml"
-EE_SITE = "attachment_site"                  # tool tip site
+EE_SITE = "attachment_site"                  # tool tip site (used if it exists)
+EE_BODY = "link6"                            # otherwise this body is used as the tool
 TOOL_AXIS = np.array([0.0, 0.0, 1.0])        # tool axis in the site frame
 TOOL_HEIGHT = 0.01                           # tool height above the board surface (m)
 START_CELL = None                            # e.g. (0, 0)  or None = random
@@ -73,8 +74,32 @@ high = np.array(high)
 HOME_Q = np.clip(model.qpos0[qadr], low, high)
 
 site_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, EE_SITE)
-if site_id < 0:
-    raise SystemExit(f"Site '{EE_SITE}' not found. Change EE_SITE at the top.")
+body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, EE_BODY)
+if site_id >= 0:
+    print(f"Tool = site '{EE_SITE}'")
+elif body_id >= 0:
+    print(f"Site '{EE_SITE}' not found, using body '{EE_BODY}' as the tool")
+else:
+    print("Neither the site nor the body was found. Sites and bodies in your model:")
+    for i in range(model.nsite):
+        print("  site:", mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_SITE, i))
+    for i in range(model.nbody):
+        print("  body:", mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_BODY, i))
+    raise SystemExit("Set EE_SITE or EE_BODY at the top to one of these names.")
+
+
+def tool_position():
+    """World position of the tool."""
+    if site_id >= 0:
+        return data.site_xpos[site_id].copy()
+    return data.xpos[body_id].copy()
+
+
+def tool_rotation():
+    """3x3 rotation matrix of the tool."""
+    if site_id >= 0:
+        return data.site_xmat[site_id].reshape(3, 3).copy()
+    return data.xmat[body_id].reshape(3, 3).copy()
 
 
 def solve_ik(target, q_start):
@@ -85,12 +110,15 @@ def solve_ik(target, q_start):
     for i in range(300):
         data.qpos[qadr] = q
         mujoco.mj_forward(model, data)
-        pos = data.site_xpos[site_id]
-        axis = data.site_xmat[site_id].reshape(3, 3) @ TOOL_AXIS
+        pos = tool_position()
+        axis = tool_rotation() @ TOOL_AXIS
         err = np.concatenate([target - pos, np.cross(axis, DOWN)])   # position error + tilt error
         if np.linalg.norm(err[:3]) < 0.002 and np.linalg.norm(err[3:]) < 0.05:
             return q, True
-        mujoco.mj_jacSite(model, data, jacp, jacr, site_id)
+        if site_id >= 0:
+            mujoco.mj_jacSite(model, data, jacp, jacr, site_id)
+        else:
+            mujoco.mj_jacBody(model, data, jacp, jacr, body_id)
         J = np.vstack([jacp[:, dofadr], jacr[:, dofadr]])
         dq = J.T @ np.linalg.solve(J @ J.T + 0.05 ** 2 * np.eye(6), err)
         q = np.clip(q + np.clip(dq, -0.3, 0.3), low, high)
@@ -171,7 +199,7 @@ with mujoco.viewer.launch_passive(model, data) as viewer:
             time.sleep(0.01)
         p_now = p_next
         # print the tool position after each move (world coordinates)
-        print(f"move {i}: cell {path[i]}  tool at {data.site_xpos[site_id].round(3)}")
+        print(f"move {i}: cell {path[i]}  tool at {tool_position().round(3)}")
 
     print("Done. Close the viewer window to exit.")
     while viewer.is_running():
