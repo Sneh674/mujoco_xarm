@@ -3,6 +3,7 @@ play_arm.py  -  STEP 2: let the trained RL brain drive the xArm6 (tool facing do
 
   1. Loads q_table.npz (made by train_rl.py)
   2. Picks a start cell and goal cell (random free cells, or set them below)
+     then waits: click Reset in the viewer (or press Backspace) to replay with new cells
   3. Follows the best moves from the Q table to get a path of cells
   4. Moves the arm cell by cell with inverse kinematics, tool pointing down
 
@@ -20,8 +21,8 @@ EE_SITE = "attachment_site"                  # tool tip site (used if it exists)
 EE_BODY = "link6"                            # otherwise this body is used as the tool
 TOOL_AXIS = np.array([0.0, 0.0, 1.0])        # tool axis in the site/body frame
 TOOL_HEIGHT = 0.01                           # tool height above the board surface (m)
-START_CELL = None                            # e.g. (0, 0)  or None = random free cell
-GOAL_CELL = None                             # e.g. (6, 12) or None = random free cell
+START_CELL = None                            # e.g. (0, 0)  or None = new random cell each replay
+GOAL_CELL = None                             # e.g. (6, 12) or None = new random cell each replay
 SUBSTEPS = 10                                # small steps between two cells (smooth motion)
 # ------------------------------------------
 
@@ -134,44 +135,54 @@ def random_free_cell():
             return (x, y)
 
 
-# ---------- start, goal and path from the Q table ----------
-if START_CELL is None:
-    START_CELL = random_free_cell()
-if GOAL_CELL is None:
-    GOAL_CELL = random_free_cell()
-    while GOAL_CELL == START_CELL:
-        GOAL_CELL = random_free_cell()
-if is_blocked(START_CELL[0], START_CELL[1]) or is_blocked(GOAL_CELL[0], GOAL_CELL[1]):
-    raise SystemExit("START_CELL or GOAL_CELL is inside an obstacle or off the board.")
-
-x, y = START_CELL
-gx, gy = GOAL_CELL
-path = [(x, y)]
-for step in range(6 * (NX + NY)):
-    if x == gx and y == gy:
-        break
-    action = np.argmax(allowed_scores(Q, x, y, gx, gy))
-    x = x + MOVES[action][0]
-    y = y + MOVES[action][1]
-    path.append((x, y))
-
-print(f"Grid {NX} x {NY}, {len(BLOCKED)} blocked cells, start {START_CELL}, goal {GOAL_CELL}")
-print(f"Path has {len(path) - 1} moves, reached goal: {path[-1] == GOAL_CELL}")
-
-# ---------- put the markers on the board ----------
+# ---------- markers ----------
 start_mocap = model.body_mocapid[mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "start")]
 goal_mocap = model.body_mocapid[mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "goal")]
-data.mocap_pos[start_mocap] = cell_to_world(START_CELL[0], START_CELL[1], 0.015)
-data.mocap_pos[goal_mocap] = cell_to_world(GOAL_CELL[0], GOAL_CELL[1], 0.015)
 
-# ---------- move the arm ----------
-data.qpos[qadr] = HOME_Q
-mujoco.mj_forward(model, data)
 
-with mujoco.viewer.launch_passive(model, data) as viewer:
-    time.sleep(1.0)
+def show_markers(start, goal):
+    data.mocap_pos[start_mocap] = cell_to_world(start[0], start[1], 0.015)
+    data.mocap_pos[goal_mocap] = cell_to_world(goal[0], goal[1], 0.015)
 
-    # first go to the start cell
+
+# ---------- one run: choose cells, build path, move the arm ----------
+def pick_cells():
+    """Start and goal: the ones set at the top, or random free cells."""
+    start = START_CELL
+    goal = GOAL_CELL
+    if start is None:
+        start = random_free_cell()
+    if goal is None:
+        goal = random_free_cell()
+        while goal == start:
+            goal = random_free_cell()
+    if is_blocked(start[0], start[1]) or is_blocked(goal[0], goal[1]):
+        raise SystemExit("START_CELL or GOAL_CELL is inside an obstacle or off the board.")
+    return start, goal
+
+
+def make_path(start, goal):
+    """Follow the best moves from the Q table until the goal is reached."""
+    x, y = start
+    gx, gy = goal
+    path = [(x, y)]
+    for step in range(6 * (NX + NY)):
+        if x == gx and y == gy:
+            break
+        action = np.argmax(allowed_scores(Q, x, y, gx, gy))
+        x = x + MOVES[action][0]
+        y = y + MOVES[action][1]
+        path.append((x, y))
+    return path
+
+
+def follow_path(viewer, path):
+    """Reset the arm to home, go to the start cell, then move cell by cell."""
+    data.qpos[qadr] = HOME_Q
+    mujoco.mj_forward(model, data)
+    viewer.sync()
+    time.sleep(0.5)
+
     p_now = cell_to_world(path[0][0], path[0][1], TOOL_HEIGHT)
     q, ok = go_to(p_now, HOME_Q)
     if not ok:
@@ -179,14 +190,13 @@ with mujoco.viewer.launch_passive(model, data) as viewer:
     data.qpos[qadr] = q
     mujoco.mj_forward(model, data)
     viewer.sync()
-    time.sleep(1.0)
+    time.sleep(0.5)
 
-    # then follow the path, one cell at a time
     for i in range(1, len(path)):
         p_next = cell_to_world(path[i][0], path[i][1], TOOL_HEIGHT)
         for k in range(1, SUBSTEPS + 1):
             if not viewer.is_running():
-                break
+                return
             p = p_now + (p_next - p_now) * (k / SUBSTEPS)
             q, ok = solve_ik(p, q)
             data.qpos[qadr] = q
@@ -194,8 +204,48 @@ with mujoco.viewer.launch_passive(model, data) as viewer:
             viewer.sync()
             time.sleep(0.01)
         p_now = p_next
-        print(f"move {i}: cell {path[i]}  tool at {tool_position().round(3)}")
+        print(f"  move {i}: cell {path[i]}  tool at {tool_position().round(3)}")
 
-    print("Done. Close the viewer window to exit.")
+
+# ---------- replay only when YOU ask ----------
+# Click Reset in the viewer (or press Backspace) -> the arm jumps back to its home pose
+# and we notice that. Backup: press the R key.
+replay_key = [False]
+
+
+def key_callback(keycode):
+    if keycode == ord("R"):
+        replay_key[0] = True
+
+
+def wait_for_replay(viewer):
+    """Wait until Reset is clicked (arm back at home) or R is pressed. False = window closed."""
+    with viewer.lock():
+        ended_at_home = np.allclose(data.qpos[qadr], HOME_Q, atol=1e-6)
+    print("Done. Click Reset (or press Backspace, or press R) to replay. Close the window to exit.")
     while viewer.is_running():
-        time.sleep(0.1)
+        with viewer.lock():
+            is_home = np.allclose(data.qpos[qadr], HOME_Q, atol=1e-6)
+        if (is_home and not ended_at_home) or replay_key[0]:
+            replay_key[0] = False
+            return True
+        time.sleep(0.05)
+    return False
+
+
+data.qpos[qadr] = HOME_Q
+mujoco.mj_forward(model, data)
+
+with mujoco.viewer.launch_passive(model, data, key_callback=key_callback) as viewer:
+    time.sleep(1.0)
+    run = 1
+    while viewer.is_running():
+        start, goal = pick_cells()
+        path = make_path(start, goal)
+        print(f"Run {run}: start {start}, goal {goal}, {len(path) - 1} moves, "
+              f"reached goal: {path[-1] == goal}")
+        show_markers(start, goal)
+        follow_path(viewer, path)
+        run = run + 1
+        if not wait_for_replay(viewer):
+            break
