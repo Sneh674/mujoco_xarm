@@ -1,0 +1,11 @@
+Variable	Meaning
+EE_SITE	    	Name of the tool site in the MuJoCo model
+EE_BODY	    	Fallback body (link6) if the site doesn't exist
+TOOL_AXIS	Direction of the tool's axis in its local coordinate system
+TOOL_HEIGHT	Desired tool height above the board, 1 cm
+START_CELL	Starting grid cell, or random if None
+GOAL_CELL	Goal grid cell, or random if None
+SUBSTEPS	Number of intermediate positions between neighboring cells
+DOWN	    	Downward direction in world coordinates
+
+

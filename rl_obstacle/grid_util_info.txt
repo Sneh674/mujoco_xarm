@@ -1,0 +1,31 @@
+grid_utils.py:
+
+In MuJoCo, a geom (short for geometry) is a 3D shape rigidly attached to a body that defines how physical objects collide, contact, and render in the simulation
+
+
+model = mujoco.MjModel.from_xml_path(MODEL_PATH)
+
+model is an MjModel object. It is the compiled, read-only description of everything in scene.xml: all bodies, geoms, joints, sizes and positions. It does not change while the simulation runs. The changing stuff (joint angles, velocities) lives in a different object, MjData, which play_arm.py creates.
+It is also a module-level variable. That’s why play_arm.py can do from grid_utils import model and use the exact same object.
+
+
+board_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "board")
+
+In MuJoCo every geom (a visible/collidable shape) has an integer index, 0, 1, 2, ... in the order they appear in the XML. This function looks up the geom named "board" and returns its int index. (If the name doesn’t exist it returns -1.) mjOBJ_GEOM just tells it “search among geoms, not among bodies or joints”.
+
+
+board_pos = model.geom_pos[board_id].copy()
+
+model.geom_pos is a NumPy array of shape (ngeom, 3): one row per geom, each row is [x, y, z]. [board_id] picks the board’s row, so board_pos is a length-3 array like [0.5, 0.0, 0.0], which is the board’s centre.
+Why .copy()? Indexing a NumPy array gives you a view into the original memory, not a separate array. Without .copy(), changing board_pos would silently change the model itself. .copy() gives you your own independent array.
+One caveat: geom_pos is the position relative to the geom’s parent body. It equals world coordinates here only because the board sits directly in the world (or in a body at the origin). That’s true for your scene, so it works.
+
+
+half_x, half_y, half_z = model.geom_size[board_id]
+
+model.geom_size is also shape (ngeom, 3). For a box geom it stores the half-sizes, not the full sizes. A board with size="0.5 0.4 0.01" is 1.0 m long, 0.8 m wide and 0.02 m thick. The line unpacks the 3 numbers into 3 variables.
+
+
+board_top = board_pos[2] + half_z
+
+board_pos[2] is the z (height) of the board centre. Adding half the thickness gives the z of the top surface. This is where the tool should travel, since you’re moving on top of the board.

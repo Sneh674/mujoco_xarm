@@ -35,6 +35,7 @@ cell_h = 2 * half_y / NY           # real cell size along y
 
 def cell_to_world(ix, iy, height):
     """Centre of grid cell (ix, iy) in world coordinates."""
+    # ix + 0.5 as we want centre of grid, ix gives grid row or column number
     x = board_pos[0] - half_x + (ix + 0.5) * cell_w
     y = board_pos[1] - half_y + (iy + 0.5) * cell_h
     return np.array([x, y, board_top + height])
@@ -74,6 +75,7 @@ def allowed_scores(Q, x, y, gx, gy):
     """The 4 Q scores for this situation, with blocked moves set to a very low number."""
     scores = Q[x, y, gx, gy].copy()
     for a in range(4):
-        if is_blocked(x + MOVES[a][0], y + MOVES[a][1]):
-            scores[a] = -1e9
+        # if is_blocked(x + MOVES[a][0], y + MOVES[a][1]):
+        #     scores[a] = -1e9
+        continue
     return scores

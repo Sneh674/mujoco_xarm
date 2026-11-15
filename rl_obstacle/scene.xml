@@ -24,9 +24,9 @@
            - pos z = board top (0.02) + half height, so they sit on the board
            - keep them inside the board
          size = half length (x), half width (y), half height (z) -->
-    <geom name="obstacle_1" type="box" pos="0.30 0.15 0.05"  size="0.03 0.08 0.03" rgba="0 0 0 1"/>
-    <geom name="obstacle_2" type="box" pos="0.50 -0.10 0.05" size="0.03 0.08 0.03" rgba="0 0 0 1"/>
-    <geom name="obstacle_3" type="box" pos="0.40 -0.27 0.05" size="0.03 0.03 0.03" rgba="0 0 0 1"/>
+    <geom name="obstacle_1" type="box" pos="0.30 0.15 0.01"  size="0.03 0.08 0.03" rgba="0 0 0 1"/>
+    <geom name="obstacle_2" type="box" pos="0.50 -0.10 0.01" size="0.03 0.08 0.03" rgba="0 0 0 1"/>
+    <geom name="obstacle_3" type="box" pos="0.40 -0.27 0.01" size="0.03 0.03 0.03" rgba="0 0 0 1"/>
 
     <!-- START (green) and GOAL (red) markers. The play script moves them. -->
     <body name="start" mocap="true" pos="0.4 0 0.05">

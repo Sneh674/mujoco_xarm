@@ -28,6 +28,8 @@ SUBSTEPS = 10                                # small steps between two cells (sm
 
 DOWN = np.array([0.0, 0.0, -1.0])
 
+# ------------------------------------------
+# loading q table
 Q = np.load("q_table.npz")["Q"]
 if Q.shape[0] != NX or Q.shape[1] != NY:
     raise SystemExit("q_table.npz does not match the grid in scene.xml. Run train_rl.py again.")
