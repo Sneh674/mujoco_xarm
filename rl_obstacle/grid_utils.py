@@ -9,9 +9,12 @@ Both scripts import this file, so they always agree on the grid.
 
 import numpy as np
 import mujoco
+from pathlib import Path
+
+MODEL_PATH = str(Path(__file__).resolve().parent / "scene.xml")
 
 # ---------------- settings ----------------
-MODEL_PATH = "scene.xml"
+# MODEL_PATH = "scene.xml"
 CELL = 0.05        # wanted cell size in meters (5 cm)
 MARGIN = 0.01      # extra safety space around obstacles (m)
 # ------------------------------------------

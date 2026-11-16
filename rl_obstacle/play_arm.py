@@ -171,7 +171,8 @@ def make_path(start, goal):
     for step in range(6 * (NX + NY)):
         if x == gx and y == gy:
             break
-        action = np.argmax(allowed_scores(Q, x, y, gx, gy))
+        # action = np.argmax(allowed_scores(Q, x, y, gx, gy))
+        action=np.argmax(Q[x, y, gx, gy])
         x = x + MOVES[action][0]
         y = y + MOVES[action][1]
         path.append((x, y))
