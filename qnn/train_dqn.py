@@ -17,6 +17,17 @@ import mujoco
 import torch
 import torch.nn as nn
 from train_grid_utils import NX, NY, MOVES, BLOCKED, is_blocked
+import os
+from datetime import datetime
+import time
+
+start_time = time.time()
+
+file_path = "train_info.txt"
+
+if not os.path.exists(file_path):
+    print("File doesn't exists, Creating file...")
+    open(file_path, "w").close()
 
 class qNN(nn.Module):
     def __init__(self):
@@ -159,6 +170,7 @@ if __name__ == "__main__":
 
     try:
         # --- training ---
+        total_loss=0
         for episode in range(1, EPISODES + 1):
             if episode % 50 == 0:
                 print("episode:",episode)
@@ -166,11 +178,14 @@ if __name__ == "__main__":
             gx, gy = random_cell()        # random goal
             while gx == x and gy == y:
                 gx, gy = random_cell()
+            visited=set()
+            # visited.append((x,y))
     
             for step in range(MAX_STEPS):
                 # x_diff=gx-x
                 # y_diff=gy-y
                 # state = torch.tensor([x, y, x_diff, y_diff], dtype=torch.float32, device=device)
+                visited.add((x,y))
                 state = get_state(x, y, gx, gy)
                 q_values = q_model(state)
                 # pick an action: sometimes random, otherwise the best known
@@ -192,6 +207,9 @@ if __name__ == "__main__":
                 elif crashed == True:
                     reward = -10
                     done = False
+                elif (new_x,new_y) in visited:
+                    reward = -5
+                    done = False
                 else:
                     reward = -1
                     done = False
@@ -204,6 +222,12 @@ if __name__ == "__main__":
                         target_q = reward + GAMMA * torch.max(q_model(next_state))
     
                 loss = criterion(predicted_q, target_q)
+                total_loss = total_loss + loss
+                avg_loss = total_loss/episode
+                if episode % 1000 == 0:
+                    print("###########################")
+                    print(f"loss for episode {episode} = {loss}")
+                    print(f"average loss after episode {episode} = {avg_loss}")
     
                 optimizer.zero_grad()
                 loss.backward()
@@ -222,6 +246,17 @@ if __name__ == "__main__":
                 print("-------------------------")
                 print(f"episode {episode}: reaches the goal in {win_per:.0f}% of random tests")
                 print(f"\tcrashed {num_crashed} out of {n_tests} tests")
+                elapsed_time = time.time() - start_time
+                print(f"\tTime elapsed: {elapsed_time:.2f} seconds")
+                with open(file_path, "a") as f:
+                    f.write("################################")
+                    f.write(f"loss for episode {episode} = {loss}")
+                    f.write(f"average loss after episode {episode} = {avg_loss}")
+                    f.write(f"-------------------------------")
+                    f.write(f"episode {episode}: reaches the goal in {win_per:.0f}% of random tests")
+                    f.write(f"\tcrashed {num_crashed} out of {n_tests} tests")
+                    f.write(f"\tTime elapsed: {elapsed_time:.2f} seconds")
+                    
             # print(f"episode {episode}: reaches the goal in {win_per:.0f}% of random tests")
             # print(f"\tcrashed {num_crashed} out of {n_tests} tests")
             if episode % 1000 == 0:
@@ -232,7 +267,11 @@ if __name__ == "__main__":
 
     except KeyboardInterrupt:
         print(f"\nTraining interrupted at episode {episode}")
+        elapsed_time = time.time() - start_time
+        print(f"Time elapsed: {elapsed_time:.2f} seconds")
 
     finally:
+        elapsed_time = time.time() - start_time
+        print(f"Time elapsed: {elapsed_time:.2f} seconds")
         torch.save(q_model.state_dict(), "q_model.pth")
         print("Model saved successfully!")
